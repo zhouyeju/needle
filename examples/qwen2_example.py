@@ -1,7 +1,11 @@
-from needle import Engine
+import needle
+import json
 
 
 if __name__ == "__main__":
-    engine = Engine(model_path="path/to/model", backend="cpu")
-    # Add code to use the engine for inference or other tasks
-    print(f"Engine initialized with model path: {engine.model_path} and backend: {engine.backend}")
+    engine = needle.engine(model_path="/Users/yejuzhou/repo/Qwen2.5-0.5B-Instruct", backend="cpu")
+    engine.load_model()
+    prompts = json.load(open("prompts", "r"))
+    for idx, prompt in enumerate(prompts):
+        hidden_states = engine.forward(prompt=prompt)
+        hidden_states.numpy().tofile(f"qwen2_prompt_{idx}_test.bin")

@@ -1,8 +1,12 @@
+from typing import overload
+import numpy as np
+import ml_dtypes
+
 class Tensor:
-    def __init__(self, data, backend="cpu"):
+    def __init__(self, data, dtype="float32", backend="cpu"):
         if backend == "cpu":
             import numpy as np
-            self.data = np.array(data)
+            self.data = np.array(data, dtype=dtype)
             self.shape = self.data.shape
             self.backend = backend
             self.size = self.data.size
@@ -10,33 +14,137 @@ class Tensor:
             self.ptr = None  # Placeholder for device pointer if needed
         elif backend == "cuda":
             raise NotImplementedError("CUDA backend not implemented yet")
+    
+    def __repr__(self) -> str:
+        return f"Tensor(shape={self.shape}, dtype={self.data.dtype}, backend={self.backend}, value={self.data})"
+    
+    def numpy(self) -> np.ndarray:
+        if self.backend == "cpu":
+            return self.data
+        else:
+            raise NotImplementedError(f"Conversion to numpy for backend '{self.backend}' is not implemented.")
 
     def to_cuda(self):
         pass
 
-    def __add__(self, other):
+    def __call_backend_method(self, other, method_name):
         if self.backend != other.backend:
             raise ValueError("Cannot add tensors with different backends")
-        func = getattr(self, f"__add__{self.backend}", None)
-        if func is None:
-            raise NotImplementedError(f"Addition for backend '{self.backend}' is not implemented.")
-        return func(other)
+        cls_method_name = f"{method_name}_{self.backend}"
+        method = getattr(Tensor, cls_method_name, None)
+        if method is None:
+            raise NotImplementedError(f"{method_name} for backend '{self.backend}' is not implemented.")
+        return method(self, other)
+
+    def __add__(self, other):
+        return self.__call_backend_method(other, "add")
     
     def __sub__(self, other):
-        if self.backend != other.backend:
-            raise ValueError("Cannot subtract tensors with different backends")
-        return Tensor(self.data - other.data, backend=self.backend)
+        return self.__call_backend_method(other, "sub")
     
     def __mul__(self, other):
-        if self.backend != other.backend:
-            raise ValueError("Cannot multiply tensors with different backends")
-        return Tensor(self.data * other.data, backend=self.backend)
+        return self.__call_backend_method(other, "mul")
     
     def __matmul__(self, other):
-        if self.backend != other.backend:
-            raise ValueError("Cannot matmul tensors with different backends")
-        return Tensor(self.data @ other.data, backend=self.backend)
+        return self.__call_backend_method(other, "matmul")
     
-    @staticmethod
-    def __add__cpu(x, y):
+    @classmethod
+    def add_cpu(cls, x, y):
         return Tensor(x.data + y.data, backend="cpu")
+    
+    @classmethod
+    def sub_cpu(cls, x, y):
+        return Tensor(x.data - y.data, backend="cpu")
+    
+    @classmethod
+    def mul_cpu(cls, x, y):
+        return Tensor(x.data * y.data, backend="cpu")
+    
+    @classmethod
+    def matmul_cpu(cls, x, y):
+        return Tensor(x.data @ y.data, backend="cpu")
+    
+
+def zeros(shape, backend="cpu"):
+    if backend == "cpu":
+        import numpy as np
+        return Tensor(np.zeros(shape), backend="cpu")
+    else:
+        raise NotImplementedError(f"{backend} backend not implemented yet")
+    
+
+def ones(shape, backend="cpu"):
+    if backend == "cpu":
+        import numpy as np
+        return Tensor(np.zeros(shape), backend="cpu")
+    else:
+        raise NotImplementedError(f"{backend} backend not implemented yet")
+    
+
+def expand_dims(tensor, axis):
+    if tensor.backend == "cpu":
+        return expand_dims_cpu(tensor, axis)
+    else:
+        raise NotImplementedError(f"{tensor.backend} backend not implemented yet")
+    
+
+def expand_dims_cpu(tensor, axis):
+    import numpy as np
+    new = np.expand_dims(tensor.data, axis=axis)
+    return Tensor(new, backend=tensor.backend)
+    
+
+def repeat(tensor, repeats, axis=0):
+    if tensor.backend == "cpu":
+        return repeat_cpu(tensor, repeats, axis)
+    else:
+        raise NotImplementedError(f"{tensor.backend} backend not implemented yet")
+    
+
+def repeat_cpu(tensor, repeats, axis=0):
+    import numpy as np
+    array = tensor.data
+    while axis >= array.ndim:
+        array = np.expand_dims(array, axis=array.ndim)
+    new = np.repeat(array, repeats, axis=axis)
+    return Tensor(new, backend=tensor.backend)
+
+
+def equal(tensor_a, tensor_b, type=int):
+    if tensor_a.backend == "cpu":
+        return equal_cpu(tensor_a, tensor_b, type)
+    else:
+        raise NotImplementedError(f"{tensor_a.backend} backend not implemented yet")
+    
+
+def equal_cpu(tensor_a, tensor_b, type):
+    import numpy as np
+    equal = np.equal(tensor_a.data, tensor_b.data)
+    if type == int:
+        return Tensor(equal.astype(np.int64), backend=tensor_a.backend)
+    elif type == bool:
+        return Tensor(equal, backend=tensor_a.backend)
+    else:
+        raise ValueError("type must be int or bool")
+    
+
+def arange(start, stop=None, step=1, backend="cpu"):
+    if stop is None:
+        stop = start
+        start = 0
+    if backend == "cpu":
+        import numpy as np
+        return Tensor(np.arange(start, stop, step), backend="cpu")
+    else:
+        raise NotImplementedError(f"{backend} backend not implemented yet")
+    
+
+def sum(tensor, axis=None, keepdims=False):
+    if tensor.backend == "cpu":
+        return sum_cpu(tensor, axis, keepdims)
+    else:
+        raise NotImplementedError(f"{tensor.backend} backend not implemented yet")
+    
+def sum_cpu(tensor, axis=None, keepdims=False):
+    import numpy as np
+    return Tensor(np.sum(tensor.data, axis=axis, keepdims=keepdims), backend=tensor.backend)

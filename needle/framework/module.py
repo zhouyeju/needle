@@ -2,7 +2,7 @@ from abc import ABC
 from typing import Any
 
 class Module(ABC):
-    def __init__(self, prefix="", backend="cpu"):
+    def __init__(self, prefix="", dtype="float32", backend="cpu"):
         self.prefix = prefix
         self.backend = backend
         pass
@@ -22,17 +22,17 @@ class Module(ABC):
         if load_weights_method is None:
             raise NotImplementedError(f"Weight loader for backend '{self.backend}' is not implemented.")
         load_weights_method(recursive_prefix, *args, **kwargs)
-        for attr_key, attr_value in self.__dict__:
+        for attr_key, attr_value in self.__dict__.items():
             if isinstance(attr_value, Module):
                 attr_value.load_weights(recursive_prefix, *args, **kwargs)
 
     def forward(self, *args: Any, **kwargs: Any) -> Any:
         pass
 
-    def weight_loader_cpu(self, prefix: str):
+    def weight_loader_cpu(self, prefix: str, *args, **kwargs):
         pass
 
-    def weight_loader_cuda(self, prefix: str):
+    def weight_loader_cuda(self, prefix: str, *args, **kwargs):
         pass
 
     def weight_loader(self, prefix: str):
