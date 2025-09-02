@@ -11,10 +11,7 @@ class Module(ABC):
         """
         model forward function that dispatches to the correct backend-specific implementation.
         """
-        forward_method = getattr(self, f"forward_{self.backend}", None)
-        if forward_method is None:
-            raise NotImplementedError(f"Forward method for backend '{self.backend}' is not implemented.")
-        return forward_method(*args, **kwargs)
+        return self.forward(*args, **kwargs)
     
     def load_weights(self, prefix: str, *args, **kwargs) -> None:
         """
@@ -29,16 +26,13 @@ class Module(ABC):
             if isinstance(attr_value, Module):
                 attr_value.load_weights(recursive_prefix, *args, **kwargs)
 
+    def forward(self, *args: Any, **kwargs: Any) -> Any:
+        pass
+
     def weight_loader_cpu(self, prefix: str):
         pass
 
     def weight_loader_cuda(self, prefix: str):
-        pass
-
-    def forward_cpu(self, *args: Any, **kwargs: Any) -> Any:
-        pass
-
-    def forward_cuda(self, *args: Any, **kwargs: Any) -> Any:
         pass
 
     def weight_loader(self, prefix: str):
