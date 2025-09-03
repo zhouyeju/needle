@@ -22,7 +22,7 @@ class Tensor:
                 self.nelements = data.size
                 self.nbytes = data.nbytes
                 from needle import ops
-                self.ptr = ops.copy_tensor_h2d(self.data.ctypes.data_as(ctypes.c_void_p), self.nelements, np.dtype(dtype).itemsize)
+                self.ptr = ops.copy_tensor_h2d(self.data.ctypes.data_as(ctypes.POINTER(ctypes.c_float)), self.nelements, np.dtype(dtype).itemsize)
             elif isinstance(data, int): # init a tensor from existing device pointer
                 self.data = None
                 self.shape = kwargs.get("shape", None)
