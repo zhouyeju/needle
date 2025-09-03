@@ -1,5 +1,6 @@
 from typing import overload, Optional
 import numpy as np
+import ctypes
 import ml_dtypes
 
 
@@ -7,6 +8,7 @@ class Tensor:
     def __init__(self, data, dtype="float32", backend="cpu", **kwargs):
         self.backend = backend
         self.dtype = dtype
+        self.ptr = None
         if backend == "cpu":
             self.data = np.array(data, dtype=dtype)
             self.shape = self.data.shape
@@ -20,7 +22,7 @@ class Tensor:
                 self.nelements = data.size
                 self.nbytes = data.nbytes
                 from needle import ops
-                self.ptr = ops.copy_tensor_h2d(self.data.flatten(), self.nelements, np.dtype(dtype).itemsize)
+                self.ptr = ops.copy_tensor_h2d(self.data.ctypes.data_as(ctypes.c_void_p), self.nelements, np.dtype(dtype).itemsize)
             elif isinstance(data, int): # init a tensor from existing device pointer
                 self.data = None
                 self.shape = kwargs.get("shape", None)
