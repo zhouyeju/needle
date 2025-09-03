@@ -1,31 +1,75 @@
-from typing import overload
+from typing import overload, Optional
 import numpy as np
 import ml_dtypes
 
+
 class Tensor:
-    def __init__(self, data, dtype="float32", backend="cpu"):
+    def __init__(self, data, dtype="float32", backend="cpu", **kwargs):
+        self.backend = backend
+        self.dtype = dtype
         if backend == "cpu":
-            import numpy as np
             self.data = np.array(data, dtype=dtype)
             self.shape = self.data.shape
-            self.backend = backend
-            self.size = self.data.size
+            self.nelements = self.data.size
             self.nbytes = self.data.nbytes
             self.ptr = None  # Placeholder for device pointer if needed
         elif backend == "cuda":
-            raise NotImplementedError("CUDA backend not implemented yet")
+            if isinstance(data, np.ndarray): # init a tensor from scratch
+                self.data = data.astype(dtype)
+                self.shape = data.shape
+                self.nelements = data.size
+                self.nbytes = data.nbytes
+                from needle import ops
+                self.ptr = ops.copy_tensor_h2d(self.data.flatten(), self.nelements, np.dtype(dtype).itemsize)
+            elif isinstance(data, int): # init a tensor from existing device pointer
+                self.data = None
+                self.shape = kwargs.get("shape", None)
+                self.nelements = np.prod(self.shape) # type: ignore
+                self.nbytes = self.nelements * np.dtype(dtype).itemsize
+                self.ptr = data
+            else:
+                raise ValueError(f"tensor must be constructed from a np.ndarray or int (device pointer) for cuda backend, {type(data)} is not allowed")
     
     def __repr__(self) -> str:
-        return f"Tensor(shape={self.shape}, dtype={self.data.dtype}, backend={self.backend}, value={self.data})"
+        return f"Tensor(shape={self.shape}, dtype={self.dtype}, backend={self.backend}, value={self.data})"
     
-    def numpy(self) -> np.ndarray:
+    def numpy(self) -> Optional[np.ndarray]:
         if self.backend == "cpu":
             return self.data
         else:
-            raise NotImplementedError(f"Conversion to numpy for backend '{self.backend}' is not implemented.")
+            from needle import ops
+            ptr = ops.copy_tensor_d2h(self.ptr, self.nelements, np.dtype(self.dtype).itemsize)
+            array = np.frombuffer(ptr, dtype=self.dtype, count=self.nelements).reshape(self.shape)
+            return array
 
-    def to_cuda(self):
-        pass
+    def cpu(self):
+        if self.backend == "cpu":
+            return self
+        elif self.backend == "cuda":
+            from needle import ops
+            ptr = ops.copy_tensor_d2h(self.ptr, self.nelements, np.dtype(self.dtype).itemsize)
+            array = np.frombuffer(ptr, dtype=self.dtype, count=self.nelements).reshape(self.shape)
+            return Tensor(array, dtype=self.dtype, backend="cpu")
+        else:
+            raise NotImplementedError(f"Conversion to cpu for backend '{self.backend}' is not implemented.")
+
+    def cuda(self):
+        if self.backend == "cuda":
+            return self
+        elif self.backend == "cpu":
+            array = np.array(self.data, dtype=self.dtype)
+            return Tensor(array, dtype=self.dtype, backend="cuda")
+
+    def __del__(self):
+        if self.backend == "cuda":
+            if self.ptr is not None:
+                from needle import ops
+                ops.free_tensor(self.ptr)
+            if self.data is not None:
+                del self.data
+        else:
+            if self.data is not None:
+                del self.data
 
     def __call_backend_method(self, other, method_name):
         if self.backend != other.backend:
